@@ -252,7 +252,7 @@ Stripe webhook 地址为 `POST /api/store/webhook/stripe`。
 
 项目已完全转型为女性成人用品独立站，与旧的 Proxy IP 业务不再有任何交集：
 
-- 旧源码已全部清除：`core/{orders,products,payments,notifications}`、`modules/proxy-ip`、`admin/*`、`webhooks/*`、`identity/api-keys.service`。
+- 旧源码已全部清除：`core/{orders,products,payments,notifications}`、`modules/intimate-commerce`、`admin/*`、`webhooks/*`、`identity/api-keys.service`。
 - 旧数据库表已全部清除：`Product`、`Order`、`Payment`、`UserProxyInstance`、`ProviderConfig`、`ProviderBalanceLog`、`EmailLog`；仅保留共享的 `User`、`VerificationCode`、`AdminAuditLog` 与新商城 `Store*` 系列表。
 - 旧文档已全部清除：`PROJECT_PLAN.md` 与 `docs/01-*` 至 `04-*`。
 - 当前种子脚本为 `prisma/commerce.seed.ts`；冒烟测试为 `prisma/commerce.smoke.ts`。

@@ -6,13 +6,13 @@
 #   关停: docker compose down
 #   重置DB: docker compose down -v && docker compose up -d
 # ==========================================
-name: proxy-ip-mvp
+name: intimate-commerce-mvp
 
 services:
   # ================= 数据库 MySQL 8 =================
   mysql:
     image: mysql:8.0
-    container_name: proxy-mysql
+    container_name: intimate-commerce-mysql
     restart: unless-stopped
     command:
       - --character-set-server=utf8mb4
@@ -20,16 +20,16 @@ services:
       - --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_ROOT_PASSWORD: rootdevpass
-      MYSQL_DATABASE: proxy_ip_mvp
-      MYSQL_USER: proxy
-      MYSQL_PASSWORD: proxydevpass
+      MYSQL_DATABASE: intimate_commerce_mvp
+      MYSQL_USER: intimate_commerce
+      MYSQL_PASSWORD: intimate_commercedevpass
       TZ: UTC
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "proxy", "-pproxydevpass"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "intimate_commerce", "-pintimate_commercedevpass"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -37,15 +37,15 @@ services:
   # ================= Redis 7（限流/缓存/简单队列MVP不用集群） =================
   redis:
     image: redis:7-alpine
-    container_name: proxy-redis
+    container_name: intimate-commerce-redis
     restart: unless-stopped
-    command: [ "redis-server", "--requirepass", "redisdevpass", "--appendonly", "yes" ]
+    command: [ "redis-server", "--requirepass", "intimate_commercedevpass", "--appendonly", "yes" ]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "redisdevpass", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "intimate_commercedevpass", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -53,7 +53,7 @@ services:
   # ================= Adminer 数据库可视化（可选，生产删） =================
   adminer:
     image: adminer:4
-    container_name: proxy-adminer
+    container_name: intimate-commerce-adminer
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -67,7 +67,7 @@ services:
   # ================= MailHog 本地SMTP（拦截所有邮件，不用真Resend，MVP本地开发省麻烦） =================
   mailhog:
     image: mailhog/mailhog
-    container_name: proxy-mailhog
+    container_name: intimate-commerce-mailhog
     restart: unless-stopped
     ports:
       - "1025:1025"   # SMTP

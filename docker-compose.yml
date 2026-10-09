@@ -1,0 +1,81 @@
+# ==========================================
+# Proxy IP MVP Docker Compose 一键开发环境
+# Usage:
+#   首次: docker compose up -d
+#   看日志: docker compose logs -f api / frontend / mysql
+#   关停: docker compose down
+#   重置DB: docker compose down -v && docker compose up -d
+# ==========================================
+name: proxy-ip-mvp
+
+services:
+  # ================= 数据库 MySQL 8 =================
+  mysql:
+    image: mysql:8.0
+    container_name: proxy-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: rootdevpass
+      MYSQL_DATABASE: proxy_ip_mvp
+      MYSQL_USER: proxy
+      MYSQL_PASSWORD: proxydevpass
+      TZ: UTC
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "proxy", "-pproxydevpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ================= Redis 7（限流/缓存/简单队列MVP不用集群） =================
+  redis:
+    image: redis:7-alpine
+    container_name: proxy-redis
+    restart: unless-stopped
+    command: [ "redis-server", "--requirepass", "redisdevpass", "--appendonly", "yes" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "redisdevpass", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ================= Adminer 数据库可视化（可选，生产删） =================
+  adminer:
+    image: adminer:4
+    container_name: proxy-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DESIGN: dracula
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ================= MailHog 本地SMTP（拦截所有邮件，不用真Resend，MVP本地开发省麻烦） =================
+  mailhog:
+    image: mailhog/mailhog
+    container_name: proxy-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"    # Web 界面 看所有发出去的邮件（localhost:8025）
+    environment:
+      MH_STORAGE: maildir
+      MH_MAILDIR_PATH: /tmp/mailhog
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,0 +1,38 @@
+{
+  "name": "proxy-ip-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "^5.51.0",
+    "axios": "^1.7.2",
+    "dayjs": "^1.11.12",
+    "lucide-vue-next": "^0.427.0",
+    "pinia": "^2.2.0",
+    "vue": "^3.4.31",
+    "vue-i18n": "^9.13.1",
+    "vue-router": "^4.4.0",
+    "zod": "^3.23.8",
+    "vee-validate": "^4.13.2",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.2",
+    "@stripe/stripe-js": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.5",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "@types/node": "^20.14.2",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1",
+    "vue-tsc": "^2.0.21",
+    "@iconify/json": "^2.2.220",
+    "@iconify/vue": "^4.1.2"
+  }
+}

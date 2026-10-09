@@ -1,0 +1,307 @@
+// ============================================================
+// Prisma Schema（MySQL 本地开发版）
+// 所有枚举字段使用 String + TS 常量判断，避免跨数据库差异。
+// 用法：
+//  npx prisma migrate deploy
+//  npx prisma db seed
+//
+// 说明：以下以 /// 打头的注释会进入生成的 Prisma Client，
+// 在编辑器里悬停字段时可见，也便于后续生成数据字典。
+// ============================================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// 商品与变体
+// 一个商品（StoreProduct）拥有多个变体（StoreVariant），
+// 价格与库存挂在变体粒度上；SKU 唯一标识可售单元。
+// ------------------------------------------------------------
+
+/// 商品主表。slug 作为对外 URL 标识，demo 标记演示商品（live 模式下不对外展示、不可下单）。
+model StoreProduct {
+  id          String   @id @default(cuid()) @db.VarChar(30)
+  /// 对外 URL 标识，kebab-case，全局唯一
+  slug        String   @unique @db.VarChar(120)
+  name        String   @db.VarChar(200)
+  /// 商品品类，取值 non-powered / powered，对应结算流程中的品类处理器
+  category    String   @db.VarChar(40)
+  description String   @db.Text
+  /// 材质说明（真实商品上架时必填）
+  material    String   @default("") @db.VarChar(200)
+  /// 尺寸说明（真实商品上架时必填）
+  dimensions  String   @default("") @db.VarChar(200)
+  /// 护理/保养说明（真实商品上架时必填）
+  care        String   @db.Text
+  /// 图片 URL 数组的 JSON 字符串（HTTPS 直链，最多 8 张）；读取时由服务层解析为数组
+  images      String   @db.Text
+  /// 是否上架
+  active      Boolean  @default(false)
+  /// 是否为演示商品：默认 true，避免误建真实商品；live 模式下演示商品不对外可见
+  demo        Boolean  @default(true)
+  /// 是否推荐位（列表排序时优先展示）
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  /// 关联变体；删除商品受变体侧 onDelete: Restrict 约束保护
+  variants    StoreVariant[]
+
+  /// 目录查询按「品类 + 上架状态」过滤
+  @@index([category, active])
+}
+
+/// 商品变体（SKU 粒度）：价格与库存的实际载体，version 字段用于乐观锁并发控制。
+model StoreVariant {
+  id        String        @id @default(cuid()) @db.VarChar(30)
+  productId String        @db.VarChar(30)
+  /// 库存单位编码，全局唯一
+  sku       String        @unique @db.VarChar(60)
+  /// 规格展示名（如颜色 / 尺寸）
+  label     String        @db.VarChar(120)
+  /// 单价，单位：整数美分（禁止使用浮点数以免精度误差）
+  price     Int
+  /// 可售库存数量
+  stock     Int           @default(0)
+  /// 乐观锁版本号：任何库存或属性变更都会自增，条件更新时作为并发校验依据
+  version   Int           @default(0)
+  /// 是否可售（后台删除变体采用置 false 的软删除，保留历史订单关联）
+  active    Boolean       @default(true)
+  product   StoreProduct  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  items     StoreOrderItem[]
+
+  /// 按商品查可用变体
+  @@index([productId, active])
+}
+
+// ------------------------------------------------------------
+// 订单
+// StoreOrder 为订单主体，金额字段全部为整数美分；
+// 支付状态与履约状态相互独立，互不覆盖。
+// ------------------------------------------------------------
+
+/// 订单主表。保存下单时的金额快照与地址快照，历史订单不随商品/地址变更而改变。
+model StoreOrder {
+  id                String   @id @default(cuid()) @db.VarChar(36)
+  /// 人类可读订单号，形如 IE-20261009-A1B2C3
+  number            String   @unique @db.VarChar(40)
+  /// 下单用户 ID；游客结账时为 null
+  userId            String?  @db.VarChar(36)
+  /// 联系邮箱（统一小写存储），同时用于游客找单匹配
+  email             String   @db.VarChar(200)
+  /// 收货地址的 JSON 字符串快照
+  address           String   @db.Text
+  /// 订单私密访问令牌的 SHA-256 摘要（绝不存明文令牌）
+  accessHash        String   @db.VarChar(80)
+  /// 访问令牌过期时间；游客找单/支付成功后会续期
+  accessExpiresAt   DateTime
+  /// 客户端生成的幂等键（UUID v4），保证重复提交只创建一张订单
+  idempotencyKey    String   @unique @db.VarChar(80)
+  /// 下单内容的指纹：用于识别「同一幂等键被换内容复用」的冲突
+  requestHash       String   @db.VarChar(80)
+  /// 商品小计（美分）
+  subtotal          Int
+  /// 折扣金额（美分）
+  discount          Int
+  /// 运费（美分），达到免邮门槛时为 0
+  shipping          Int
+  /// 应付总额 = subtotal - discount + shipping（美分）
+  total             Int
+  currency          String   @default("usd") @db.VarChar(8)
+  /// 税务状态，恒为 not_calculated——本系统不计算销售税，「未计算」不等于「免税」
+  taxStatus         String   @default("not_calculated") @db.VarChar(24)
+  /// 实际使用的优惠码
+  coupon            String?  @db.VarChar(40)
+  /// 支付状态：pending / paid / cancelled / expired / refunded / payment_review
+  paymentStatus     String   @default("pending") @db.VarChar(24)
+  /// 履约状态：unfulfilled / shipped（与支付状态独立演进）
+  fulfillmentStatus String   @default("unfulfilled") @db.VarChar(24)
+  /// Stripe Checkout 会话 ID（唯一，用于回调时比对防串单）
+  paymentSession    String?  @unique @db.VarChar(120)
+  /// Stripe PaymentIntent ID（退款核验时用它确认退款归属同一支付）
+  paymentIntent     String?  @db.VarChar(120)
+  /// 承运商（USPS / UPS / FedEx / Other）
+  carrier           String?  @db.VarChar(60)
+  /// 物流运单号
+  trackingNumber    String?  @db.VarChar(80)
+  /// 退款凭据号（Stripe 退款 ID 或线下凭证号）
+  refundReference   String?  @db.VarChar(120)
+  paidAt            DateTime?
+  shippedAt         DateTime?
+  /// 支付窗口截止时间；超时由定时任务释放库存，晚到付款转入 payment_review
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  items             StoreOrderItem[]
+  returns           StoreReturn[]
+
+  /// 用户查自己的订单列表
+  @@index([userId, createdAt])
+  /// 定时任务扫描待支付且已过期的订单
+  @@index([paymentStatus, expiresAt])
+  /// 游客按邮箱检索订单
+  @@index([email, createdAt])
+}
+
+/// 订单明细行。名称/规格/SKU/品类均冗余存储为下单时的快照，
+/// 保证商品后续改名或改价不影响历史订单的可读性与对账。
+model StoreOrderItem {
+  id        String      @id @default(cuid()) @db.VarChar(30)
+  orderId   String      @db.VarChar(36)
+  variantId String      @db.VarChar(30)
+  /// 商品名快照
+  name      String      @db.VarChar(200)
+  /// 规格名快照
+  label     String      @db.VarChar(120)
+  /// SKU 快照
+  sku       String      @db.VarChar(60)
+  /// 品类快照
+  category  String      @db.VarChar(40)
+  quantity  Int
+  /// 下单时单价快照（美分）
+  unitPrice Int
+  /// 订单删除时级联删除明细
+  order     StoreOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// 变体受保护不可删除，保证明细始终能追溯到变体
+  variant   StoreVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+/// 优惠码。以 code 作为主键（天然唯一），支持按百分比折扣与最低消费门槛。
+model StoreCoupon {
+  /// 优惠码，大写字母/数字/下划线/连字符
+  code      String    @id @db.VarChar(40)
+  /// 折扣百分比（1~80），最终折扣金额向下取整为整数美分
+  percent   Int
+  /// 最低消费门槛（美分），未达门槛不可使用
+  minimum   Int       @default(0)
+  /// 是否启用
+  active    Boolean   @default(true)
+  /// 过期时间，null 表示永不过期
+  expiresAt DateTime?
+}
+
+/// 售后（退货/退款诉求）单。每张订单最多一条，故 orderId 唯一。
+model StoreReturn {
+  id        String     @id @default(cuid()) @db.VarChar(30)
+  /// 一单一售后：订单 ID 唯一约束
+  orderId   String     @unique @db.VarChar(36)
+  /// 用户填写的退货原因
+  reason    String     @db.Text
+  /// 处理状态：requested → approved/rejected；approved → received
+  /// 注意 received 是执行退款并回补库存的前置条件
+  status    String     @default("requested") @db.VarChar(24)
+  /// 后台处理备注
+  note      String     @db.Text
+  createdAt DateTime   @default(now())
+  /// 订单删除时级联删除售后单
+  order     StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// 邮件发件箱
+// 业务侧只写表，CommerceMail 定时任务负责实际投递与重试。
+// ------------------------------------------------------------
+
+/// 邮件发件箱（异步投递队列）。eventKey 保证同一业务事件只产生一封邮件。
+model StoreMail {
+  id        String   @id @default(cuid()) @db.VarChar(30)
+  /// 事件唯一键（如 created:{订单ID}、reset:{验证码ID}），upsert 时用于去重
+  eventKey  String   @unique @db.VarChar(200)
+  recipient String   @db.VarChar(200)
+  subject   String   @db.VarChar(200)
+  /// 邮件正文；投递成功后会被清空为 [delivered]，避免私密链接/验证码长期留存
+  text      String   @db.Text
+  /// 投递状态：pending / sending / sent
+  status    String   @default("pending") @db.VarChar(24)
+  /// 已尝试投递次数；达到 8 次后不再重试（死信）
+  attempts  Int      @default(0)
+  /// 下次可投递时间，配合指数退避控制重试节奏
+  nextAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  /// 定时任务按「状态 + 下次投递时间」捞取待投递邮件
+  @@index([status, nextAt])
+  /// 按收件人排查发信记录
+  @@index([recipient, createdAt])
+}
+
+// ------------------------------------------------------------
+// 用户与安全
+// ------------------------------------------------------------
+
+/// 用户账号表（物理表名 users）。密码只存 bcrypt 摘要，永不存明文。
+model User {
+  id              String     @id @default(cuid()) @db.VarChar(30)
+  /// 登录邮箱（小写存储），全局唯一
+  email           String     @unique @db.VarChar(200)
+  /// bcrypt 密码摘要
+  passwordHash    String     @map("password_hash") @db.VarChar(200)
+  fullName        String?    @map("full_name") @db.VarChar(120)
+  /// 是否管理员（后台接口以此为权限依据）
+  isAdmin         Boolean    @default(false) @map("is_admin")
+  /// 账号状态：active / 其他（非 active 一律禁止登录，旧令牌同步失效）
+  status          String     @default("active") @db.VarChar(24)
+  locale          String     @default("en") @db.VarChar(12)
+  timezone        String     @default("UTC") @db.VarChar(40)
+  lastLoginAt     DateTime?  @map("last_login_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  adminAuditLogs  AdminAuditLog[] @relation("AdminAudits")
+
+  @@index([status])
+  @@map("users")
+}
+
+/// 验证码表（当前仅用于邮箱找回密码）。只存 SHA-256 摘要，明文仅随邮件下发。
+model VerificationCode {
+  id         String   @id @default(cuid()) @db.VarChar(30)
+  email      String   @db.VarChar(200)
+  /// 下发渠道，目前固定为 email
+  channel    String   @default("email") @db.VarChar(24)
+  /// 验证码的 SHA-256 摘要（不存明文）
+  codeHash   String   @map("code_hash") @db.VarChar(120)
+  /// 用途（如 reset_password），与邮箱共同确定一个验证码空间
+  purpose    String   @db.VarChar(40)
+  expiresAt  DateTime @map("expires_at")
+  /// 使用时间；非空表示已消费。消费采用条件更新，保证并发下只用一次
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  /// 按「邮箱 + 用途」检索有效验证码
+  @@index([email, purpose])
+  @@map("verification_codes")
+}
+
+/// 后台操作审计日志。与业务写操作同事务落库，保证「操作与日志」原子一致。
+model AdminAuditLog {
+  id            String   @id @default(cuid()) @db.VarChar(30)
+  /// 操作管理员用户 ID
+  adminUserId   String   @map("admin_user_id") @db.VarChar(30)
+  /// 动作标识，如 product.save / order.ship / order.refund / return.approved
+  action        String   @db.VarChar(80)
+  /// 目标类型（当前为 commerce）
+  targetType    String?  @map("target_type") @db.VarChar(60)
+  /// 目标主键（商品 ID / 订单 ID / 优惠码）
+  targetId      String?  @map("target_id") @db.VarChar(80)
+  /// 变更前数据快照（预留字段，当前写入流程未填充）
+  payloadBefore String?  @map("payload_before") @db.Text
+  /// 变更后数据快照（预留字段，当前写入流程未填充）
+  payloadAfter  String?  @map("payload_after") @db.Text
+  ipAddress     String?  @map("ip_address") @db.VarChar(60)
+  note          String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  /// 管理员不可被删除（审计链不可断），故为 Restrict
+  admin User @relation("AdminAudits", fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  /// 按管理员查操作历史
+  @@index([adminUserId, createdAt])
+  /// 按目标对象追溯变更记录
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
+}

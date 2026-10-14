@@ -1,10 +1,15 @@
 # ==========================================
-# Proxy IP MVP Docker Compose 一键开发环境
+# Intimate Commerce MVP Docker Compose 一键开发环境
 # Usage:
 #   首次: docker compose up -d
-#   看日志: docker compose logs -f api / frontend / mysql
+#   看日志: docker compose logs -f mysql redis adminer mailhog
 #   关停: docker compose down
 #   重置DB: docker compose down -v && docker compose up -d
+#
+# 注意：本编排创建的是独立数据库（库名 intimate_commerce_mvp，
+# 账号 intimate_commerce，见下方 MYSQL_* 变量），与默认本地 .env 使用的
+# intimate_commerce_dev（root）并非同一个库。改用 Docker 起库时，
+# 请同步调整 backend/.env 的 DATABASE_URL，确保两处指向同一个库。
 # ==========================================
 name: intimate-commerce-mvp
 

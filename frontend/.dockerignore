@@ -1,0 +1,17 @@
+node_modules
+dist
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+*.log
+.npm-cache
+
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+.git
+.gitignore

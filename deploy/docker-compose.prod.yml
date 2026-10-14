@@ -1,0 +1,127 @@
+# ============================================================
+# Intimate Commerce — 生产编排（路线 B：容器部署）
+#
+# 使用：
+#   cp deploy/env/compose.env.example deploy/.env && nano deploy/.env
+#   cp deploy/env/backend.env.production.example deploy/env/backend.env && nano deploy/env/backend.env
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env run --rm migrate
+#   curl -fsS http://127.0.0.1:8080/api/store/health
+#
+# 与开发用 docker-compose.yml 的区别：
+#   - 不包含 adminer / mailhog
+#   - 库名/账号独立为生产库，不复用 intimate_commerce_mvp
+#   - api / web 服务名固定，web 内置 Nginx 反代到 api:3000
+#
+# 注意：本编排仅用于生产（需域名 + TLS）。
+#       无域名的预览部署请走原生 deploy.sh --preview（见 QUICKSTART-NO-DOMAIN.md），
+#       容器路线未提供预览变体。
+# ============================================================
+name: intimate-commerce-prod
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: intimate-commerce-prod-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?deploy/.env 缺少 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-intimate_commerce_prod}
+      MYSQL_USER: ${MYSQL_USER:-intimate_commerce}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?deploy/.env 缺少 MYSQL_PASSWORD}
+      TZ: UTC
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # 刻意不映射端口到宿主，数据库只对 compose 内网可见
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: intimate-commerce-prod-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?deploy/.env 缺少 REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # 一次性迁移任务：compose 只允许它在 tools profile 下手动触发
+  migrate:
+    build:
+      context: ../backend
+      target: migrate
+    profiles: ["tools"]
+    env_file:
+      - ./env/backend.env
+    environment:
+      NODE_ENV: production
+      # 覆盖 backend.env 里指向 127.0.0.1 的地址，改用 compose 内网服务名
+      DATABASE_URL: mysql://${MYSQL_USER:-intimate_commerce}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-intimate_commerce_prod}?schema=public&connection_limit=10
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ../backend
+      target: runner
+    container_name: intimate-commerce-prod-api
+    restart: unless-stopped
+    env_file:
+      - ./env/backend.env
+    environment:
+      NODE_ENV: production
+      APP_ENV: production
+      APP_PORT: 3000
+      # 容器内不由 @nestjs/config 读 .env，全部走环境变量注入
+      DATABASE_URL: mysql://${MYSQL_USER:-intimate_commerce}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-intimate_commerce_prod}?schema=public&connection_limit=10
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # 宿主 Nginx 是唯一反代跳数
+      TRUST_PROXY_HOPS: 1
+    # 不发布端口，仅对 compose 网络与 web 容器可见
+    expose:
+      - "3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/store/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  web:
+    build:
+      context: ../frontend
+      args:
+        # 留空 → 前端走相对路径 /api，由本容器 Nginx 反代到 api:3000
+        VITE_API_BASE_URL: ""
+    container_name: intimate-commerce-prod-web
+    restart: unless-stopped
+    ports:
+      # 只绑定回环地址，公网流量必须先经过宿主 Nginx 的 TLS 终结
+      - "${WEB_BIND:-127.0.0.1:8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  redis_data:

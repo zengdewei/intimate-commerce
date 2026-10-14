@@ -17,7 +17,7 @@
       <div class="flex items-center gap-2">
         <template v-if="user.isLoggedIn">
           <span v-if="user.me" class="hidden sm:inline text-sm text-slate-600 mr-2">Hi, {{ user.me.fullName || user.me.email }}</span>
-          <button v-if="user.me?.isAdmin" as="router-link" class="btn-ghost hidden lg:inline-flex" @click="$router.push('/dashboard/my-ips')">
+          <button v-if="user.me?.isAdmin" class="btn-ghost hidden lg:inline-flex" @click="$router.push('/dashboard/my-ips')">
             Admin
           </button>
           <button class="btn-ghost" @click="handleLogout">{{ $t('nav.logout') }}</button>

@@ -48,12 +48,14 @@ CREATE DATABASE intimate_commerce_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 - 商城：http://localhost:5173
 - 后台：http://localhost:5173/admin
 - 开发 API 文档：http://localhost:3000/api/docs
-- 管理员：`admin@example.com` / `Admin@123456`
+- 管理员：`admin@local.dev` / `Admin@123456`
 - 演示顾客：`test@example.com` / `Test@123456`
 - 演示优惠码：`PREVIEW10`，减免 10%。
 
-以上密码仅限本地。若设置了 `ADMIN_EMAIL` / `ADMIN_PASSWORD`，seed 使用指定值；
-已存在账户不会被 seed 重置密码。旧开发数据库可能已有历史测试账户。
+以上密码仅限本地。管理员邮箱与密码取自 `ADMIN_EMAIL` / `ADMIN_PASSWORD`，未设置时回退为
+`admin@example.com` / `Admin@123456`。本工作区 `backend/.env` 设为 `ADMIN_EMAIL="admin@local.dev"`，
+因此实际管理员是 `admin@local.dev`（`npx prisma db seed` 日志会打印真实生效的邮箱）。
+seed 使用 `upsert` + 空 `update`，已存在账户不会被 seed 重置密码；旧开发数据库可能已有历史测试账户。
 
 ## 页面
 

@@ -1,7 +1,7 @@
 # 女性用品商城 MVP
 
 基于现有项目改造的美国实物商品独立站。Vue 3 + Vite + NestJS + Prisma / MySQL。
-PC 优先，适配手机；英文、美元、美国单仓。原 Proxy IP 业务已停用。
+PC 优先，适配手机；英文、美元、美国单仓。
 
 ## 当前状态
 
@@ -23,8 +23,6 @@ Docker、Stripe 或邮件密钥仅按需要启用。
 CREATE DATABASE intimate_commerce_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-示例凭据：`root` / `123456`，生产部署请更换独立账号和强密码。
-
 在 `backend` 目录：
 
 ```sh
@@ -44,11 +42,14 @@ npm run dev
 - 店铺：<http://localhost:5173>
 - 后台：<http://localhost:5173/admin>
 - 开发 API 文档：<http://localhost:3000/api/docs>
-- 本地管理员：`admin@example.com` / `Admin@123456`
+- 本地管理员：`admin@local.dev` / `Admin@123456`
 - 本地顾客：`test@example.com` / `Test@123456`
 - 演示优惠码：`PREVIEW10`
 
-若设置了 `ADMIN_EMAIL` / `ADMIN_PASSWORD`，seed 使用指定账户；已存在账户不会重置密码。
+管理员账户由 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 决定，未设置时回退为 `admin@example.com` / `Admin@123456`。
+本工作区的 `backend/.env` 已设置 `ADMIN_EMAIL="admin@local.dev"`，因此**实际管理员是 `admin@local.dev`，不是 `admin@example.com`**
+（`npx prisma db seed` 的日志会打印真实生效的邮箱）。seed 使用 `upsert` + 空 `update`，**已存在账户的密码不会被重置**；
+修改密码需直接改库，或删除该账户后重跑 `npx prisma db seed`。
 
 ### 开发邮件查看
 

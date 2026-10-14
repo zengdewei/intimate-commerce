@@ -41,6 +41,11 @@ async function seed() {
     });
   }
   await db.storeCoupon.upsert({ where: { code: 'PREVIEW10' }, update: {}, create: { code: 'PREVIEW10', percent: 10 } });
-  console.log('Preview ready: 4 demonstration products. Admin: admin@example.com / Admin@123456. Customer: test@example.com / Test@123456.');
+  // Report the accounts that were actually seeded. The email can come from ADMIN_EMAIL,
+  // so a hard-coded address here would be misleading (see README "本地管理员").
+  const adminPasswordHint = process.env.ADMIN_PASSWORD ? 'password from ADMIN_PASSWORD' : 'password Admin@123456 (default)';
+  console.log('Preview ready: 4 demonstration products.');
+  console.log(`  Admin: ${email} / ${adminPasswordHint}. Customer: test@example.com / Test@123456.`);
+  console.log('  Accounts use upsert with empty update — existing passwords are NOT reset.');
 }
 seed().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => db.$disconnect());

@@ -35,9 +35,4 @@ export default () => ({
     user: process.env.DEV_SMTP_USER || '',
     pass: process.env.DEV_SMTP_PASS || '',
   },
-  proxyline: {
-    apiBaseUrl: process.env.PROXYLINE_API_BASE_URL || 'https://panel.proxyline.net/api',
-    apiKey: process.env.PROXYLINE_API_KEY || '',
-    alertThresholdUsd: parseFloat(process.env.PROXYLINE_BALANCE_ALERT_THRESHOLD_USD || '20'),
-  },
 });

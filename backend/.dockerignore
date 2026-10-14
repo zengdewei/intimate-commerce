@@ -1,0 +1,25 @@
+# 构建产物不进入镜像上下文：node_modules 是本机（可能是 Windows）的，
+# 覆盖进 Linux 镜像会导致 Prisma 引擎与原生模块架构不匹配。
+node_modules
+dist
+build
+*.tsbuildinfo
+
+# 环境文件绝不入库也不入镜像
+.env
+.env.*
+!.env.example
+
+# 日志与本地缓存
+*.log
+smoke-final.log
+.npm-cache
+.ts-cache
+
+# 编辑器 / 系统
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+.git
+.gitignore

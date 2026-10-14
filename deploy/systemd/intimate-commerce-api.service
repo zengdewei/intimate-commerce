@@ -1,0 +1,69 @@
+# ============================================================
+# Intimate Commerce API — systemd 服务单元
+#
+# 安装：
+#   sudo cp deploy/systemd/intimate-commerce-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now intimate-commerce-api
+#   sudo systemctl status intimate-commerce-api
+#   sudo journalctl -u intimate-commerce-api -f
+#
+# 若 node 不在 /usr/bin/node（例如用 nvm 安装），
+# 请改下方 ExecStart 的绝对路径： command -v node
+# ============================================================
+
+[Unit]
+Description=Intimate Commerce API (NestJS)
+Documentation=file:/opt/intimate-commerce/docs/COMMERCE_MVP.md
+After=network-online.target
+Wants=network-online.target
+# 若 MySQL 装在同一台机器且由 systemd 管理，可取消下一行注释
+# After=mysql.service
+
+[Service]
+Type=simple
+User=intimate
+Group=intimate
+
+# 必须锁定到 backend 目录：
+#   1) register-paths.cjs 用 __dirname 推导 dist/src，依赖相对路径
+#   2) @nestjs/config 的 envFilePath 是 ['.env.local', '.env']，相对 cwd 解析
+WorkingDirectory=/opt/intimate-commerce/backend
+
+Environment=NODE_ENV=production
+# 说明：deploy.sh 会按 MODE 改写本行 —— production=production，preview=development。
+# 预览模式必须把 NODE_ENV 设为 development，否则 production 判定会触发 HTTPS 强制校验导致启动失败。
+# 若不通过 deploy.sh 而手工安装本单元做预览部署，请手动把本行改为 Environment=NODE_ENV=development。
+# 生产密钥统一放在 /etc 下，权限 600，不要放进代码目录
+EnvironmentFile=/etc/intimate-commerce/backend.env
+
+ExecStart=/usr/bin/node -r ./register-paths.cjs dist/src/main.js
+
+Restart=always
+RestartSec=5
+# NestJS 收到 SIGTERM 会走优雅关闭
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=intimate-api
+
+# ================= 安全加固 =================
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+# 注意：应用不写本地磁盘，因此不需要 ReadWritePaths。
+# 若后续新增文件上传或本地日志目录，请在此显式放行：
+# ReadWritePaths=/opt/intimate-commerce/backend/storage
+
+[Install]
+WantedBy=multi-user.target

@@ -268,13 +268,19 @@ log "执行数据库迁移（prisma migrate deploy）"
 set -a; . "$ENV_FILE"; set +a
 if ! npx prisma migrate deploy; then
   die "数据库迁移失败。常见原因：
-      1) 库不存在 —— 执行：
-           CREATE DATABASE intimate_commerce_prod CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-           CREATE USER 'intimate_commerce'@'localhost' IDENTIFIED BY '你的密码';
-           GRANT ALL PRIVILEGES ON intimate_commerce_prod.* TO 'intimate_commerce'@'localhost';
+      1) 认证插件兼容性（报 Unknown authentication plugin sha256_password 时）——
+         Prisma 迁移引擎不走 TLS，caching_sha2_password 的非加密完整认证会失败，
+         命令行 mysql 能连不代表 Prisma 能连。改用 mysql_native_password（8.0 系列可用）：
+           ALTER USER 'intimate_commerce'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';
+         （密码与 DATABASE_URL 保持一致；MySQL 8.4+ 需先在 my.cnf 启用 mysql-native-password=ON）
+      2) 库不存在 —— 执行：
+           CREATE DATABASE intimate_commerce_preview CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+           CREATE USER 'intimate_commerce'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';
+           GRANT ALL PRIVILEGES ON intimate_commerce_preview.* TO 'intimate_commerce'@'localhost';
            FLUSH PRIVILEGES;
-      2) MySQL 未启动：sudo systemctl status mysql
-      3) DATABASE_URL 账号密码错误"
+         （生产模式把库名换成 intimate_commerce_prod）
+      3) MySQL 未启动：sudo systemctl status mysql
+      4) DATABASE_URL 账号密码错误"
 fi
 
 log "编译 TypeScript（nest build）"

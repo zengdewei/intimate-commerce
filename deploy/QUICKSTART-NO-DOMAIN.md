@@ -74,7 +74,7 @@ CREATE DATABASE intimate_commerce_preview
 -- ⚠️ 下面 <YOUR_DB_PASSWORD> 必须替换成你自己的强密码，不要原样粘贴！
 --    建议用纯字母数字（避免 URL 编码麻烦）：openssl rand -hex 16
 --    把生成的串记下来，下一步要填进环境文件的 DATABASE_URL
-CREATE USER 'intimate_commerce'@'localhost' IDENTIFIED BY '<YOUR_DB_PASSWORD>';
+CREATE USER 'intimate_commerce'@'localhost' IDENTIFIED WITH mysql_native_password BY '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON intimate_commerce_preview.* TO 'intimate_commerce'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
@@ -167,7 +167,7 @@ ADMIN_PASSWORD="你自己设的强口令至少14位"
 
 ```sh
 cd /opt/intimate-commerce
-sudo DOMAIN=<SERVER_IP> ./deploy/deploy.sh --preview --seed
+sudo env DOMAIN=<SERVER_IP> ./deploy/deploy.sh --preview --seed
 ```
 
 参数解释：
@@ -230,6 +230,47 @@ journalctl -u intimate-commerce-api -f
 ---
 
 ## 10. 常见问题
+
+**报 `Unknown authentication plugin 'sha256_password'`（Schema engine error）**
+
+不是密码错，是**认证插件不兼容**：MySQL 5.7 / 部分 8.x 环境创建的账号默认用 `sha256_password`，
+而 Prisma 5.x 的 Rust 查询引擎只支持 `mysql_native_password` 和 `caching_sha2_password`，
+所以在连接握手阶段就失败，跟迁移文件和密码正确性都无关。
+
+⚠️ **同一个用户名可能有多行 host**（`localhost` / `127.0.0.1` / `%`）。
+你用 `DATABASE_URL` 连的是 `127.0.0.1`，MySQL 匹配的是**最具体的那行 host**。
+只ALTER 了 `@'localhost'`，Prisma 很可能连的是 `@'%'` 那行——所以会「改了还报错」。
+务必用下面的脚本一次性改掉所有行。
+
+```sh
+# 只诊断，看清有几行、分别是什么插件
+mysql -u root -p -e "SELECT user, host, plugin FROM mysql.user WHERE user='intimate_commerce';"
+
+# 一键修复：改所有 host 行 + 生成纯 ASCII 密码 + 回写 backend.env
+sudo /opt/intimate-commerce/deploy/fix-mysql-auth.sh --yes
+
+# 或手动把所有行改掉
+mysql -u root -p <<'SQL'
+ALTER USER 'intimate_commerce'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';
+ALTER USER 'intimate_commerce'@'%'         IDENTIFIED WITH mysql_native_password BY '你的密码';
+FLUSH PRIVILEGES;
+SQL
+```
+
+> MySQL 8.4+ 已彻底移除 `mysql_native_password`，那种环境请加 `--caching-sha2` 参数。
+
+**同时必须检查 `DATABASE_URL` 里的密码**
+
+密码必须是**纯 ASCII**。中文占位（比如 `你的密码`）根本没法做 URL 编码，
+Prisma 会把它当畸形连接串，报错还很难看懂。密码含 `@ : / ? # & %` 也一样会被截断。
+
+```sh
+grep '^DATABASE_URL=' /etc/intimate-commerce/backend.env
+# 生成一个安全的密码
+openssl rand -hex 16
+```
+把输出填进 `DATABASE_URL` 与MySQL 账号，两边保持一致。
+新版 `deploy.sh` 已在预检阶段检查这两点，命中会直接报错并提示修复命令。
 
 **脚本卡在「数据库迁移失败」**
 最常见是库没建或账号密码不对。回看第 3 步，确认库名 `intimate_commerce_preview`、用户密码与 `DATABASE_URL` 一致。用 `sudo mysql -u intimate_commerce -p intimate_commerce_preview` 能登进去就说明账号没问题。

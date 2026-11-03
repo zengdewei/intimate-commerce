@@ -24,6 +24,7 @@ import { CommerceController, CommerceAdminController, StoreAdminGuard } from './
 import { CommerceService } from './commerce.service';
 import { CommerceConfig } from './commerce.config';
 import { CommercePayments } from './commerce.payments';
+import { CommerceUploadService } from './commerce.upload';
 import { CommerceMail } from './commerce.mail';
 import { APP_FILTER } from '@nestjs/core';
 import { CommerceDatabaseFilter } from './commerce.filter';
@@ -31,7 +32,7 @@ import { CommerceDatabaseFilter } from './commerce.filter';
 @Module({
   imports: [JwtModule.register({})],
   controllers: [CommerceController, CommerceAdminController],
-  providers: [CommerceService, CommerceConfig, CommercePayments, CommerceMail, StoreAdminGuard,
+  providers: [CommerceService, CommerceConfig, CommercePayments, CommerceMail, CommerceUploadService, StoreAdminGuard,
     // 以 APP_FILTER 注册，使该过滤器对全应用生效（而不仅限于本模块的控制器）。
     { provide: APP_FILTER, useClass: CommerceDatabaseFilter }],
   // 导出 CommerceService：identity 模块的注册/重置密码流程会直接写入邮件发件箱。

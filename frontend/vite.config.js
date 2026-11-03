@@ -18,6 +18,10 @@ export default defineConfig(function (_a) {
                     target: env.VITE_API_BASE_URL || 'http://localhost:3000',
                     changeOrigin: true,
                 },
+                '/uploads': {
+                    target: env.VITE_API_BASE_URL || 'http://localhost:3000',
+                    changeOrigin: true,
+                },
                 '/webhooks': {
                     target: env.VITE_API_BASE_URL || 'http://localhost:3000',
                     changeOrigin: true,

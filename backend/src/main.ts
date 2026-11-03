@@ -7,6 +7,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as morgan from 'morgan';
+import * as express from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 
@@ -54,6 +56,13 @@ async function bootstrap() {
     skip: (req) => req.url.includes('/store/orders/') || req.url.includes('/auth/'),
   }));
   app.setGlobalPrefix('api');
+
+  // ====== 上传图片静态服务：挂载 /uploads 目录（不受 /api 前缀影响）。
+  // 上传接口写盘到此目录（见 CommerceUploadService），这里以只读方式对外提供访问。
+  // 生产环境建议由 Nginx/CDN 直接服务该目录；开发环境由后端直接提供。
+  const expressApp = app.getHttpAdapter().getInstance();
+  const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+  expressApp.use('/uploads', express.static(uploadDir, { index: false, dotfiles: 'deny' }));
 
   // ====== Swagger：localhost:3000/api/docs
   const docCfg = new DocumentBuilder()

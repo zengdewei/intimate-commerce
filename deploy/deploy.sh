@@ -224,6 +224,15 @@ mkdir -p "$WEB_ROOT" "$CERTBOT_WEBROOT" "$ENV_DIR"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/backend" "$APP_DIR/frontend"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$WEB_ROOT"
 
+# 商品图片上传目录：确保存在且服务用户可写（systemd 单元已 ReadWritePaths 放行此路径）。
+# 默认 backend/uploads；若 backend.env 的 UPLOAD_DIR 指向别处，会以环境变量为准，
+# 但目录必须预先创建并归属服务用户，否则上传接口会因权限失败。
+UPLOAD_DIR_VAL="$(env_get UPLOAD_DIR)"
+UPLOAD_DIR_VAL="${UPLOAD_DIR_VAL:-$APP_DIR/backend/uploads}"
+mkdir -p "$UPLOAD_DIR_VAL"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$UPLOAD_DIR_VAL"
+log "上传目录就绪：$UPLOAD_DIR_VAL"
+
 case "$APP_DIR" in
   /home/*)
     warn "APP_DIR 位于 /home 下，而 systemd 单元启用了 ProtectHome=true，会导致服务无法读取代码。

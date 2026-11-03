@@ -61,9 +61,11 @@ RestrictSUIDSGID=true
 RestrictNamespaces=true
 LockPersonality=true
 RestrictRealtime=true
-# 注意：应用不写本地磁盘，因此不需要 ReadWritePaths。
-# 若后续新增文件上传或本地日志目录，请在此显式放行：
-# ReadWritePaths=/opt/intimate-commerce/backend/storage
+# 商品图片上传需要写本地磁盘（CommerceUploadService 落盘到 UPLOAD_DIR，
+# 默认 backend/uploads）。ProtectSystem=full 会把 /opt 等挂成只读，
+# 必须显式放行上传目录，否则上传接口会因 EROFS 失败。
+# 若在 backend.env 中把 UPLOAD_DIR 指到别处，请同步修改下面的路径。
+ReadWritePaths=/opt/intimate-commerce/backend/uploads
 
 [Install]
 WantedBy=multi-user.target

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useUserStore } from '@/stores/user';
 import { money, errorMessage } from '@/stores/shop';
 import api from '@/lib/axios';
 
+const { t } = useI18n();
 const user = useUserStore();
 const router = useRouter();
 const orders = ref<any[]>([]);
@@ -41,7 +43,7 @@ async function saveProfile() {
   try {
     const { data } = await api.patch('/auth/me', { fullName: profile.fullName || null, timezone: profile.timezone });
     if (user.me) { user.me.fullName = data.data.fullName; (user.me as any).timezone = data.data.timezone; }
-    profileMsg.value = 'Profile saved.';
+    profileMsg.value = t('account.profileSaved');
   } catch (e) {
     profileErr.value = errorMessage(e);
   } finally {
@@ -51,13 +53,13 @@ async function saveProfile() {
 
 async function savePassword() {
   passwordErr.value = ''; passwordMsg.value = '';
-  if (password.newPassword.length < 8) { passwordErr.value = 'New password must be at least 8 characters.'; return; }
-  if (password.newPassword !== password.confirm) { passwordErr.value = 'Passwords do not match.'; return; }
+  if (password.newPassword.length < 8) { passwordErr.value = t('account.pwMinLength'); return; }
+  if (password.newPassword !== password.confirm) { passwordErr.value = t('account.pwMismatch'); return; }
   passwordSaving.value = true;
   try {
     await api.patch('/auth/password', { currentPassword: password.currentPassword, newPassword: password.newPassword });
     password.currentPassword = ''; password.newPassword = ''; password.confirm = '';
-    passwordMsg.value = 'Password updated.';
+    passwordMsg.value = t('account.passwordUpdated');
   } catch (e) {
     passwordErr.value = errorMessage(e);
   } finally {
@@ -72,30 +74,30 @@ function logout() { user.logout(); router.push('/'); }
   <section class="section-wrap">
     <div class="section-heading">
       <div>
-        <p class="eyebrow">YOUR PERSONAL SPACE</p>
-        <h1>Hello, {{ user.me?.fullName || 'you' }}.</h1>
+        <p class="eyebrow">{{ t('account.eyebrow') }}</p>
+        <h1>{{ t('account.hello', { name: user.me?.fullName || t('account.you') }) }}</h1>
       </div>
-      <button class="text-link" @click="logout">Sign out</button>
+      <button class="text-link" @click="logout">{{ t('account.signOut') }}</button>
     </div>
 
     <div class="filter-tabs account-tabs">
-      <button :class="{ selected: tab === 'orders' }" @click="tab = 'orders'">Your orders</button>
-      <button :class="{ selected: tab === 'profile' }" @click="tab = 'profile'">Profile &amp; password</button>
-      <RouterLink v-if="user.me?.isAdmin" to="/admin">Store management</RouterLink>
+      <button :class="{ selected: tab === 'orders' }" @click="tab = 'orders'">{{ t('account.yourOrders') }}</button>
+      <button :class="{ selected: tab === 'profile' }" @click="tab = 'profile'">{{ t('account.profilePassword') }}</button>
+      <RouterLink v-if="user.me?.isAdmin" to="/admin">{{ t('nav.admin') }}</RouterLink>
     </div>
 
     <div v-if="tab === 'orders'">
       <p v-if="error" class="notice error">{{ error }}</p>
-      <p v-else-if="loading">Loading your orders...</p>
+      <p v-else-if="loading">{{ t('account.loading') }}</p>
       <div v-else-if="!orders.length" class="empty-state">
-        <h2>Your story starts here.</h2>
-        <p>No account orders yet. Guest orders can be found using your private email link.</p>
-        <RouterLink class="button primary" to="/shop">Explore the collection</RouterLink>
-        <RouterLink class="text-link" to="/track">Find a guest order</RouterLink>
+        <h2>{{ t('account.emptyTitle') }}</h2>
+        <p>{{ t('account.emptyBody') }}</p>
+        <RouterLink class="button primary" to="/shop">{{ t('common.explore') }}</RouterLink>
+        <RouterLink class="text-link" to="/track">{{ t('account.findGuest') }}</RouterLink>
       </div>
       <div v-else class="table-wrap">
         <table>
-          <thead><tr><th>Order</th><th>Date</th><th>Payment</th><th>Dispatch</th><th>Total</th><th></th></tr></thead>
+          <thead><tr><th>{{ t('account.colOrder') }}</th><th>{{ t('account.colDate') }}</th><th>{{ t('account.colPayment') }}</th><th>{{ t('account.colDispatch') }}</th><th>{{ t('account.colTotal') }}</th><th></th></tr></thead>
           <tbody>
             <tr v-for="o in orders" :key="o.id">
               <td>{{ o.number }}</td>
@@ -103,7 +105,7 @@ function logout() { user.logout(); router.push('/'); }
               <td><span class="status-chip">{{ o.paymentStatus }}</span></td>
               <td>{{ o.fulfillmentStatus }}</td>
               <td>{{ money(o.total) }}</td>
-              <td><RouterLink class="text-link" :to="`/orders/${o.id}`">View order</RouterLink></td>
+              <td><RouterLink class="text-link" :to="`/orders/${o.id}`">{{ t('account.viewOrder') }}</RouterLink></td>
             </tr>
           </tbody>
         </table>
@@ -112,22 +114,22 @@ function logout() { user.logout(); router.push('/'); }
 
     <div v-else class="profile-grid">
       <form class="card" @submit.prevent="saveProfile">
-        <h2>Profile</h2>
-        <label><span>Display name</span><input v-model="profile.fullName" type="text" maxlength="80" placeholder="Optional"></label>
-        <label><span>Timezone</span><input v-model="profile.timezone" type="text" maxlength="40" placeholder="UTC"></label>
+        <h2>{{ t('account.profile') }}</h2>
+        <label><span>{{ t('account.displayName') }}</span><input v-model="profile.fullName" type="text" maxlength="80" :placeholder="t('account.optional')"></label>
+        <label><span>{{ t('account.timezone') }}</span><input v-model="profile.timezone" type="text" maxlength="40" placeholder="UTC"></label>
         <p v-if="profileMsg" class="notice ok">{{ profileMsg }}</p>
         <p v-if="profileErr" class="notice error">{{ profileErr }}</p>
-        <button class="button primary" type="submit" :disabled="profileSaving">{{ profileSaving ? 'Saving…' : 'Save profile' }}</button>
+        <button class="button primary" type="submit" :disabled="profileSaving">{{ profileSaving ? t('account.saving') : t('account.saveProfile') }}</button>
       </form>
 
       <form class="card" @submit.prevent="savePassword">
-        <h2>Change password</h2>
-        <label><span>Current password</span><input v-model="password.currentPassword" type="password" autocomplete="current-password" required></label>
-        <label><span>New password (min. 8 chars)</span><input v-model="password.newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
-        <label><span>Confirm new password</span><input v-model="password.confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+        <h2>{{ t('account.changePassword') }}</h2>
+        <label><span>{{ t('account.currentPassword') }}</span><input v-model="password.currentPassword" type="password" autocomplete="current-password" required></label>
+        <label><span>{{ t('account.newPassword') }}</span><input v-model="password.newPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label><span>{{ t('account.confirmPassword') }}</span><input v-model="password.confirm" type="password" autocomplete="new-password" minlength="8" required></label>
         <p v-if="passwordMsg" class="notice ok">{{ passwordMsg }}</p>
         <p v-if="passwordErr" class="notice error">{{ passwordErr }}</p>
-        <button class="button primary" type="submit" :disabled="passwordSaving">{{ passwordSaving ? 'Updating…' : 'Update password' }}</button>
+        <button class="button primary" type="submit" :disabled="passwordSaving">{{ passwordSaving ? t('account.updating') : t('account.updatePassword') }}</button>
       </form>
     </div>
   </section>

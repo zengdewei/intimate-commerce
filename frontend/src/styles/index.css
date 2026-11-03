@@ -38,6 +38,8 @@ small { font-size: 12px; }
 .desktop-nav a { position: relative; padding: 12px 0; }
 .desktop-nav a:hover:after, .desktop-nav a.router-link-exact-active:after { content: ""; height: 1px; position: absolute; bottom: 5px; left: 0; right: 0; background: var(--ink); }
 .header-actions { display: flex; align-items: center; gap: 23px; }
+.locale-toggle { font-size: 11px; letter-spacing: .08em; padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text); cursor: pointer; font-weight: 600; }
+.locale-toggle:hover { border-color: var(--brand, #b04a5a); color: var(--brand, #b04a5a); }
 .bag-link { display: flex; align-items: center; gap: 7px; }
 .bag-link span { font-size: 10px; }
 .icon-button { padding: 7px; background: transparent; border: 0; display: inline-flex; align-items: center; }
@@ -79,7 +81,7 @@ small { font-size: 12px; }
 .product-editorial { position: relative; aspect-ratio: 4/5; padding: 24px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #dacfc5; background: #eee2d8; overflow: hidden; }
 .product-tag { position: absolute; top: 19px; left: 19px; font-size: 8px; letter-spacing: .11em; }
 .editorial-name { font: italic 37px/1.1 Georgia, serif; letter-spacing: -.045em; margin-bottom: 24px; max-width: 190px; }
-.editorial-note { font-size: 10px; opacity: .7; }
+.editorial-note { font-size: 10px; opacity: .7; white-space: pre-line; }
 .product-editorial > svg { position: absolute; right: 21px; bottom: 20px; stroke-width: 1; }
 .tone-1 { background: #e6e3d8; border-color: #d1cfbf; color: #5b5d4e; }
 .tone-2 { background: #ead9df; border-color: #dbc3ce; color: #613c50; }

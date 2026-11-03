@@ -514,9 +514,9 @@ export class CommerceService implements OnModuleInit {
     if (!input.demo && input.active && (!input.images.length || !input.material.trim() || !input.dimensions.trim() || !input.care.trim())) {
       throw new BadRequestException('Real products require images, material, dimensions and care instructions');
     }
-    // 上架合规校验二：图片必须为 HTTPS 直链，且长度受限。
+    // 上架合规校验二：图片必须为站内上传路径（/uploads/）或 HTTPS 直链，且长度受限。
     for (const image of input.images) {
-      if (image.length > 4000 || !/^https:\/\//.test(image)) throw new BadRequestException('Images must use HTTPS');
+      if (image.length > 4000 || !(/^https:\/\//.test(image) || /^\/uploads\//.test(image))) throw new BadRequestException('Images must be HTTPS URLs or uploaded files (/uploads/...)');
     }
     // 上架合规校验三：需要至少一个可售变体（active 且库存 > 0）。
     const active = input.variants.some(v => v.active && v.stock > 0);

@@ -21,13 +21,15 @@
  * ============================================================================
  */
 
-import { Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get, Headers, Injectable, Param, Post, Put, RawBodyRequest, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get, Headers, Injectable, Param, Post, Put, RawBodyRequest, Req, UnauthorizedException, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '@/common/decorators/public.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { PrismaService } from '@/infrastructure/database/prisma.service';
 import { CommerceService } from './commerce.service';
 import { CommerceConfig } from './commerce.config';
+import { CommerceUploadService } from './commerce.upload';
 import { CheckoutDto, CouponDto, ProductDto, QuoteDto, RecoveryDto, RefundDto, ReturnDto, ReturnUpdateDto, ShipmentDto } from './commerce.dto';
 
 /**
@@ -145,7 +147,21 @@ export class CommerceController {
 @Controller('store/admin')
 @UseGuards(StoreAdminGuard)
 export class CommerceAdminController {
-  constructor(private readonly store: CommerceService) {}
+  constructor(private readonly store: CommerceService, private readonly uploads: CommerceUploadService) {}
+
+  /**
+   * 上传商品图片（后台）。
+   *   - StoreAdminGuard 保证仅管理员可调用。
+   *   - FileInterceptor 以内存模式接收单个文件（字段名 image），
+   *     大小上限由 multer limits 配合服务层二次校验，避免超大请求占满内存。
+   *   - 返回站点内相对 URL，运营者将其并入商品 images 数组保存。
+   */
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('image', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  upload(@UploadedFile() file?: { buffer: Buffer; originalname?: string; size?: number }) {
+    if (!file) throw new BadRequestException('No image file provided (field name: image)');
+    return this.uploads.saveImage(file);
+  }
 
   /** 商品列表（含下架变体，供后台编辑）。 */
   @Get('products') products() { return this.store.adminProducts(); }

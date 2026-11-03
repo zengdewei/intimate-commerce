@@ -9,6 +9,8 @@ const coupons = ref<any[]>([]);
 const health = ref<any>(null);
 const editing = ref<any>(null);
 const imageUrls = ref('');
+const uploading = ref(false);
+const fileInput = ref<HTMLInputElement | null>(null);
 const error = ref('');
 const success = ref('');
 const busy = ref(false);
@@ -37,6 +39,7 @@ const filtered = computed(() => {
 const imageRows = computed(() => imageUrls.value.split('\n').map(line => line.trim()));
 function imageValid(url: string) {
   if (!url) return undefined;
+  if (url.startsWith('/uploads/')) return true;
   try {
     const u = new URL(url);
     return u.protocol === 'https:';
@@ -75,7 +78,7 @@ function edit(p?: any) {
 async function saveProduct() {
   const p = editing.value;
   const images = imageUrls.value.split('\n').map(s => s.trim()).filter(Boolean);
-  for (const u of images) if (!imageValid(u)) { error.value = 'Image URLs must use HTTPS.'; return; }
+  for (const u of images) if (!imageValid(u)) { error.value = 'Image URLs must use HTTPS, or be uploaded files.'; return; }
   if (images.length > 8) { error.value = 'Maximum 8 images per product.'; return; }
   const data = {
     slug: p.slug, name: p.name, category: p.category, description: p.description, material: p.material, dimensions: p.dimensions,
@@ -92,6 +95,29 @@ async function saveCoupon() {
   await run(() => api.post('/store/admin/coupons', { ...coupon, code: coupon.code.toUpperCase(), expiresAt: coupon.expiresAt ? new Date(coupon.expiresAt).toISOString() : undefined }), 'Discount code saved.');
 }
 function onImageError(idx: number) { imagePreviewError[idx] = true; }
+
+async function uploadImages(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const urls = imageUrls.value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (urls.length + files.length > 8) { error.value = 'Maximum 8 images per product.'; input.value = ''; return; }
+  uploading.value = true; error.value = ''; success.value = '';
+  try {
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await api.post('/store/admin/upload', fd);
+      urls.push(res.data.url);
+    }
+    imageUrls.value = urls.join('\n');
+  } catch (err) {
+    error.value = errorMessage(err);
+  } finally {
+    uploading.value = false;
+    input.value = '';
+  }
+}
 </script>
 <template>
   <section class="section-wrap admin-page"><div class="section-heading"><div><p class="eyebrow">OPERATIONS</p><h1>Store management.</h1></div><RouterLink class="button secondary" to="/shop">View storefront</RouterLink></div><div class="filter-tabs account-tabs"><button v-for="t in ['overview', 'products', 'orders', 'coupons']" :key="t" :class="{ selected: tab === t }" @click="tab = t">{{ t }}</button><button :disabled="busy" @click="run(async () => {}, 'Updated.')">Refresh</button></div><p v-if="error" class="notice error" role="alert">{{ error }}</p><p v-if="success" class="notice success" role="status">{{ success }}</p><p v-if="busy">Working...</p>
@@ -99,6 +125,11 @@ function onImageError(idx: number) { imagePreviewError[idx] = true; }
     <template v-if="tab === 'products'"><div class="section-heading"><h2>Catalog & available stock</h2><button class="button primary" @click="edit()">Add product</button></div>
       <form v-if="editing" class="admin-editor" @submit.prevent="saveProduct"><div class="section-heading"><h2>{{ editing.id ? 'Edit product' : 'New product' }}</h2><button type="button" class="text-link" @click="editing = null">Close editor</button></div><div class="form-grid"><label class="field">Name<input v-model="editing.name" required minlength="2" maxlength="150"></label><label class="field">URL slug<input v-model="editing.slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="100"></label><label class="field">Category<select v-model="editing.category"><option value="non-powered">Non-powered essentials</option><option value="powered">Powered pleasure</option></select></label><div class="check-group"><label class="checkbox-field"><input v-model="editing.active" type="checkbox">Published</label><label class="checkbox-field"><input v-model="editing.demo" type="checkbox">Demonstration only</label><label class="checkbox-field"><input v-model="editing.featured" type="checkbox">Featured</label></div></div><label class="field">Description<textarea v-model="editing.description" required minlength="10" maxlength="5000" rows="3"></textarea></label><div class="form-grid"><label class="field">Verified material<textarea v-model="editing.material" maxlength="1000"></textarea></label><label class="field">Dimensions<textarea v-model="editing.dimensions" maxlength="1000"></textarea></label></div><label class="field">Care instructions<textarea v-model="editing.care" maxlength="2000"></textarea></label>
         <label class="field">Image URLs (HTTPS, one per line, up to 8)<textarea v-model="imageUrls" rows="4" :class="{ invalid: imageRows.some(u => u && !imageValid(u)) || imageRows.filter(Boolean).length > 8 }"></textarea><small>Only use product images you own or are authorized to publish. Real listings require verified product information.</small>
+          <div class="upload-row">
+            <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden @change="uploadImages">
+            <button type="button" class="button secondary" :disabled="uploading || imageRows.filter(Boolean).length >= 8" @click="fileInput?.click()">{{ uploading ? 'Uploading…' : 'Upload images' }}</button>
+            <small v-if="uploading">Uploading files…</small>
+          </div>
           <div v-if="imageRows.filter(Boolean).length" class="image-preview-grid">
             <figure v-for="(u, idx) in imageRows.filter(Boolean)" :key="idx" :class="{ broken: !imageValid(u) || imagePreviewError[idx] }">
               <img v-if="imageValid(u) && !imagePreviewError[idx]" :src="u" :alt="`Preview ${idx + 1}`" loading="lazy" @error="onImageError(idx)">
@@ -145,6 +176,7 @@ function onImageError(idx: number) { imagePreviewError[idx] = true; }
 .pill.ok { background: var(--success-soft); color: var(--success); }
 .pill.warn { background: var(--warn-soft); color: var(--warn); }
 textarea.invalid { border-color: var(--warn); }
+.upload-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .variant-editor { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr 1fr auto auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
 .variant-editor.row-conflict { border-color: var(--warn); background: var(--warn-soft); }
 .row-hint { grid-column: 1 / -1; color: var(--warn); font-weight: 600; padding-top: 4px; }

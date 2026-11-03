@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import api from '@/lib/axios';
+import { i18n } from '@/i18n';
 
 export interface Variant { id: string; sku: string; label: string; price: number; stock: number; active: boolean }
 export interface Product {
@@ -9,10 +10,14 @@ export interface Product {
 }
 export interface CartItem { variantId: string; quantity: number; name: string; label: string; price: number; slug: string }
 export const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n / 100);
-export const categoryName = (s: string) => ({ 'non-powered': 'Non-powered essentials', powered: 'Powered pleasure' }[s] || s);
+/** 商品品类名（随当前语言切换）。 */
+export const categoryName = (s: string) => {
+  const t = i18n.global.t as (k: string) => string;
+  return { 'non-powered': t('category.nonPowered'), powered: t('category.powered') }[s] || s;
+};
 export const errorMessage = (e: any) => {
   const m = e.response?.data?.message;
-  return Array.isArray(m) ? m.join('. ') : m || e.message || 'Something went wrong. Please try again.';
+  return Array.isArray(m) ? m.join('. ') : m || e.message || (i18n.global.t as any)('common.retry');
 };
 export const editorialImage = 'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=' + encodeURIComponent(
   'Luxury editorial still life photography for a feminine wellness lifestyle website, sculptural cream ceramic vase with one dark burgundy calla lily, folded mauve linen and smooth rose quartz stones on a warm pink travertine table, soft natural window light, rich wine colored background, sophisticated minimalist art direction, subtle film grain, no text, no logos, no people, landscape composition'

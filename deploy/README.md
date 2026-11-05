@@ -199,8 +199,12 @@ systemctl status intimate-commerce-api
 journalctl -u intimate-commerce-api -f
 systemctl restart intimate-commerce-api
 
-# 健康检查（含 paymentReview / failedEmails 指标）
+# 健康检查（公开存活探测：只返回 ok/service/env）
 curl -fsS http://127.0.0.1:3000/api/store/health | python3 -m json.tool
+
+# 运营指标（需管理员 JWT，含 paymentReview / failedEmails / demoProducts）
+curl -fsS -H "Authorization: Bearer <管理员JWT>" \
+  http://127.0.0.1:3000/api/store/admin/health | python3 -m json.tool
 
 # 数据库备份与恢复
 mysqldump --single-transaction --routines --events \

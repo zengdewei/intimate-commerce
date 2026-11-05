@@ -80,6 +80,13 @@ export class CommerceController {
     } catch { throw new UnauthorizedException('Session expired. Please sign in again.'); }
   }
 
+  /**
+   * 公开存活探测端点（供部署脚本 / 监控 / 负载均衡使用）。
+   * 只返回「服务是否活着」的轻量信息，不含任何运营指标或敏感数据，
+   * 与后台需要管理员鉴权的 /store/admin/health 是两回事。
+   */
+  @Public() @Get('health') health() { return { ok: true, service: 'intimate-commerce', env: this.cfg.production ? 'production' : 'development' }; }
+
   /** 公开站点设置：站名、运费、免邮门槛、各类公告文案、是否演示模式等。 */
   @Public() @Get('settings') settings() { return this.cfg.publicSettings(); }
 
